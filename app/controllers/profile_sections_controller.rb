@@ -22,6 +22,10 @@ class ProfileSectionsController < ApplicationController
     attributes = permitted_params
     attributes.delete(:shown_posts)
     if attributes[:text].present? && section.is_a?(SellerProfileRichTextSection)
+
+      ## block iframe intercept
+      return head :ok unless validate_iframe_src!(attributes[:text][:content])
+      
       processed_content = process_text(attributes[:text][:content], section.json_data["text"]["content"] || [])
       attributes[:text][:content] = processed_content
     end
@@ -31,6 +35,22 @@ class ProfileSectionsController < ApplicationController
     end
   end
 
+ ## block intercept code
+ def validate_iframe_src!(content)
+  content.each do |node|
+    next unless node[:type] == "raw"
+
+    iframe = Nokogiri::HTML.fragment(node.dig(:attrs, :html)).at("iframe")
+    return false unless iframe
+
+    src = iframe["src"].to_s.strip
+    return false unless src.start_with?(
+      "https://cdn.iframe.ly/api/iframe?url="
+    )
+  end
+  true
+end
+  
   def destroy
     current_seller.seller_profile_sections.find_by_external_id!(params[:id]).destroy!
   end
